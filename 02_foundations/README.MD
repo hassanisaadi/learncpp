@@ -1,5 +1,5 @@
 # Foundations
-## 1 Introduction to the C++ Language
+## 1. Introduction to the C++ Language
 ```cpp
 #include <fstream>
 #include <iostream>
@@ -59,8 +59,8 @@ int main() {
   PrintBoard(board);
 }
 ```
-## 2 A* Search
-### 2.1 Passing by Reference
+## 2. A* Search
+### 2.1. Passing by Reference
 ```cpp
 #include <iostream>
 using std::cout;
@@ -79,7 +79,7 @@ int main() {
     cout << "The int a now equals: " << a << "\n";
 }
 ```
-### 2.2 `const` vs. `constexpr`
+### 2.2. `const` vs. `constexpr`
 ```cpp
 #include <iostream>
 int main()
@@ -94,9 +94,9 @@ int main()
     std::cout << "k = " << k << "\n";
 }
 ```
-### 2.3 Arrays vs. Vectors
+### 2.3. Arrays vs. Vectors
 Arrays are a lower level data structure than vectors, and can be slightly more efficient, in terms of memory and element access. However, this efficiency comes with a price. Unlike vectors, which can be extended with more elements, arrays have a fixed length. Additionally, arrays may require careful memory management, depending how they are used.
-### 2.4 A* Search full Program
+### 2.4. A* Search full Program
 ```cpp
 #include <algorithm>  // for sort
 #include <fstream>
