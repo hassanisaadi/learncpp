@@ -311,3 +311,63 @@ there is a preprocessor directive:
 at the top of the header, along with an `#endif` at the end. This is called an "include guard". Since the header will be included into another file, and #include just pastes contents into a file, the include guard prevents the same file from being pasted multiple times into another file. This might happen if multiple files include the same header, and then are all included into the same main.cpp, for example. The ifndef checks if HEADER_EXAMPLE_H has not been defined in the file already. If it has not been defined yet, then it is defined with #define HEADER_EXAMPLE_H, and the rest of the header is used. If HEADER_EXAMPLE_H has already been defined, then the preprocessor does not enter the ifndef block. 
 
 Note: There are other ways to do this. Another common way is to use an `#pragma once` preprocessor directive.
+### 3.2. Multifile Program Example
+#### `vect_add_one.h` and `vect_add_one.cpp`
+```cpp
+#ifndef VECT_ADD_ONE_H
+#define VECT_ADD_ONE_H
+#include <vector>
+using std::vector;
+// AddOneToEach method declaration.
+void AddOneToEach(vector<int> &v);
+#endif
+```
+and
+```cpp
+#include "vect_add_one.h"
+void AddOneToEach(vector<int> &v) 
+{
+    for (auto& i: v) {
+        i++;
+    }
+}
+```
+#### `increment_and_sum.h` and `increment_and_sum.cpp`
+```cpp
+#ifndef INCREMENT_AND_SUM_H
+#define INCREMENT_AND_SUM_H
+#include <vector>
+using std::vector;
+// IncrementAndComputeVectorSum method declaration.
+int IncrementAndComputeVectorSum(vector<int> v);
+#endif
+```
+and
+```cpp
+#include "vect_add_one.h"
+
+int IncrementAndComputeVectorSum(vector<int> v) {
+    int total = 0;
+    AddOneToEach(v);
+
+    for (auto i: v) {
+        total += i;
+    }
+    return total;
+}
+```
+and `main.cpp` function:
+```cpp
+#include <iostream>
+#include <vector>
+#include "increment_and_sum.h"
+using std::vector;
+using std::cout;
+
+int main() 
+{
+    vector<int> v{1, 2, 3, 4};
+    int total = IncrementAndComputeVectorSum(v);
+    cout << "The total is: " << total << "\n";
+}
+```
