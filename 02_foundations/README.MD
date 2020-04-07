@@ -301,4 +301,3 @@ int main() {
   TestExpandNeighbors();
 }
 ```
-### 1. Linktest Test
