@@ -59,7 +59,7 @@ int main() {
   PrintBoard(board);
 }
 ```
-# 2. A* Search
+#2. A* Search
 ### 2.1. Passing by Reference
 ```cpp
 #include <iostream>
