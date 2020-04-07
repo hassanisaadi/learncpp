@@ -398,3 +398,35 @@ int main()
     cout << "The value of i is changed to: " << i << "\n";    //7
 }
 ```
+### 3.4. Pointers
+A C++ pointer is just a variable that stores the memory address of an object in your program.
+#### 3.4.1 Accessing a Memory Address
+```cpp
+#include <iostream>
+using std::cout;
+
+int main() {
+    int i = 5;
+    int j = 6;
+    
+    // Print the memory addresses of i and j
+    cout << "The address of i is: " << &i << "\n";
+    cout << "The address of j is: " << &j << "\n";
+}
+```
+#### 3.4.2 Storing a Memory Address
+```cpp
+#include <iostream>
+using std::cout;
+
+int main() 
+{
+    int i = 5;
+    // A pointer pointer_to_i is declared and initialized to the address of i.
+    int* pointer_to_i = &i;
+    
+    // Print the memory addresses of i and j
+    cout << "The address of i is:          " << &i << "\n";
+    cout << "The variable pointer_to_i is: " << pointer_to_i << "\n";
+}
+```
