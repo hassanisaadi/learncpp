@@ -9,7 +9,7 @@ In this file, I just summarized code snippets from this program. It's for person
 #### [2.2. `const` vs. `constexpr`](./02_foundations/README.MD#22-const-vs-constexpr)
 #### [2.3. Arrays vs. Vectors](./02_foundations/README.MD#23-arrays-vs-vectors)
 #### [2.4. A* Search full Program](./02_foundations/README.MD#24-a-search-full-program)
-### [3. Wrting Multifile Programs](./02_foundations/README.MD#-writing-multifile-programs)
+### [3. Wrting Multifile Programs](./02_foundations/README.MD#3-writing-multifile-programs)
 #### [3.1. Include Guard](./02_foundations/README.MD#31-include-guard)
 ## [3. Object-oriented Programming]()
 ## [4. Memory Management]()
