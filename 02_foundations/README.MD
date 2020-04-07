@@ -372,6 +372,7 @@ int main()
 }
 ```
 ### 3.3. References
+A reference is another name given to an existing variable. On the left hand side of any variable declaration, the `&` operator can be used to declare a reference.
 ```cpp
 #include <iostream>
 using std::cout;
