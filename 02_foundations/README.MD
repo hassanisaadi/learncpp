@@ -1,4 +1,4 @@
-# Foundations
+# 2. Foundations
 ## 1. Introduction to the C++ Language
 ```cpp
 #include <fstream>
