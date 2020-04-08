@@ -495,11 +495,11 @@ int main()
     cout << "The value of the int pointed to by my_pointer is: " << *my_pointer << "\n";
 }
 ```
-#### 3.4.6. References vs Pointers
-##### Similarities
+### 3.5. References vs Pointers
+#### Similarities
 * Both references and pointers can be used in pass-by-reference to a function.
 * They both provide an alternative way to access an existing variable: pointers through the variable's address, and references through another name for that variable.
-##### Diferences
+#### Diferences
 | References | Pointers |
 | ---- | ---- |
 References must be initialized when they are declared. This means that a reference will always point to data that was intentionally assigned to it. | Pointers can be declared without being initialized, which is dangerous. If this happens mistakenly, the pointer could be pointing to an arbitrary address in memory, and the data associated with that address could be meaningless, leading to undefined behavior and difficult-to-resolve bugs.
@@ -507,3 +507,42 @@ References can not be null. This means that a reference should point to meaningf
 When used in a function for pass-by-reference, the reference can be used just as a variable of the same type would be. | When used in a function for pass-by-reference, a pointer must be dereferenced in order to access the underlying object.
 
 * References are generally easier and safer than pointers.
+### 3.6. Maps (`unordered_map`)
+```cpp
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <string>
+using std::vector;
+using std::cout;
+using std::unordered_map;
+using std::string;
+
+int main() {
+    // Create strings to use in the hash table.
+    string key = "word";
+    string def_1 = "a unit of language, consisting of one or more spoken sounds or their written representation, that functions as a principal carrier of meaning";
+    string def_2 = "speech or talk: to express one's emotion in words";
+    string def_3 = "a short talk or conversation: 'Marston, I'd like a word with you.'";
+    string def_4 = "an expression or utterance: a word of warning";
+    unordered_map <string, vector<string>> my_dictionary;
+
+    // Check if key is in the hash table.
+    if (my_dictionary.find(key) == my_dictionary.end()) {
+        cout << "The key 'word' is not in the dictionary." << "\n";
+        cout << "Inserting a key-value pair into the dictionary." << "\n\n";
+        // Set the value for the key.
+        my_dictionary[key] = vector<string> {def_1, def_2, def_3, def_4};
+    }
+
+    // The key should now be in the hash table. You can access the
+    // value corresponding to the key with square brackets [].
+    // Here, the value my_dictionary[key] is a vector of strings.
+    // We iterate over the vector and print the strings.
+    cout << key << ": \n";
+    auto definitions = my_dictionary[key];
+    for (string definition : definitions) {
+        cout << definition << "\n";
+    }
+}
+```
