@@ -546,3 +546,19 @@ int main() {
     }
 }
 ```
+### 3.7. `->` Operator
+The arrow operator `->` is used to simultaneously
+* dereference a pointer to an object and
+* access an attribute or method.
+For example, in the code below, `cp` is a pointer to a `Car` object, and the following two are equivalent:
+```cpp
+// Simultaneously dereference the pointer and 
+// access IncrementDistance().
+cp->IncrementDistance();
+```
+```cpp
+// Dereference the pointer using *, then 
+// access IncrementDistance() with traditional 
+// dot notation.
+(*cp).IncrementDistance();
+```
