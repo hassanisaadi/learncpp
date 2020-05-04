@@ -630,3 +630,63 @@ generate an error.
 
 Specifying a function as `override` is good practice, as it empowers the compiler to verify the code, 
 and communicates the intention of the code to future users.
+
+## 3.18. Multiple Inheritence
+```cpp
+#include <iostream>
+#include <string>
+#include <assert.h>
+
+class Animal {
+public:
+    double age;
+};
+
+class Pet {
+public:
+    std::string name;
+};
+
+// Dog derives from *both* Animal and Pet
+class Dog : public Animal, public Pet {
+public:
+    std::string breed;
+};
+
+class Cat : public Animal, public Pet {
+public:
+    std::string color;
+};
+
+int main()
+{
+    Cat cat;
+    cat.color = "black";
+    cat.age = 10;
+    cat.name = "Max";
+    assert(cat.color == "black");
+    assert(cat.age == 10);
+    assert(cat.name == "Max");
+}
+```
+
+### 3.18.1. The Diamond Problem
+If a class inherits from two base classes, both of which themselves inherit from the same
+abstract class, a conflict can emerge (the diamond).
+
+## 3.19. Generic Programming using `template`
+Templates enable generic programming by generalizing a function to apply to any class. 
+Specifically, templates use types as parameters so that the same implementation can 
+operate on different data types.
+```cpp
+#include <assert.h>
+
+// TODO: Create a generic function Product that multiplies two parameters
+template <typename T>
+T Product(T a, T b){ return a * b; }
+
+int main() { 
+  assert(Product<int>(10, 2) == 20); 
+  assert(Product<double>(10.0, 20.0) == 200.0); 
+}
+```
