@@ -219,7 +219,13 @@ int main(void) {
 }
 ```
 
-## 3.9. Inheritence
+## 3.9. Access Modifiers in C++
+* **Public**: All the class members declared under public will be available to everyone. The data members and member functions declared public can be accessed by other classes too. The public members of a class can be accessed from anywhere in the program using the direct member access operator (.) with the object of that class.
+* **Private**: The class members declared as private can be accessed only by the functions inside the class. They are not allowed to be accessed directly by any object or function outside the class. Only the member functions or the friend functions are allowed to access the private data members of a class.
+* **Protected**: Protected access modifier is similar to that of private access modifiers, the difference is that the class member declared as Protected are inaccessible outside the class but they can be accessed by any subclass(derived class) of that class.
+[Source](https://www.geeksforgeeks.org/access-modifiers-in-c/)
+
+## 3.10. Inheritence
 Here's an example of how we can implement inheritence in C++. We have a *parent* `Vehicle` class:
 ```cpp
 class Vehicle {
@@ -247,10 +253,11 @@ public:
 };
 ```
 
-### 3.9.1. Inherited Access Specifiers
+### 3.10.1. Inherited Access Specifiers
 * **Public inheritance**: the public and protected members of the base class listed after the specifier keep their member access in the derived class
 
 * **Protected inheritance**: the public and protected members of the base class listed after the specifier are protected members of the derived class
 
 * **Private inheritance**: the public and protected members of the base class listed after the specifier are private members of the derived class
+[Source](https://en.cppreference.com/w/cpp/language/access)
 
