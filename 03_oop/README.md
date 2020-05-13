@@ -559,7 +559,7 @@ public:
   virtual std::string Talk() const = 0;
 };
 
-class Cat {
+class Cat : public Animal{
 public:
   std::string Talk() const { return std::string("Meow"); }
 };
