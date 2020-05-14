@@ -248,14 +248,14 @@ string LinuxParser::Uid(int pid) {
 
 // DONE: Read and return the user associated with a process
 string LinuxParser::User(int pid) {
-  string line, key, value, pid_str;
+  string line, key, value, uid_str;
   std::ifstream filestream(kPasswordPath);
   if (filestream.is_open()) {
     while (std::getline(filestream, line)) {
       std::replace(line.begin(), line.end(), ':', ' ');
       std::istringstream linestream(line);
-      while (linestream >> key >> value >> pid_str) {
-        if (pid_str == to_string(pid)) {
+      while (linestream >> key >> value >> uid_str) {
+        if (uid_str == LinuxParser::Uid(pid)) {
           return key;
         }
       }
