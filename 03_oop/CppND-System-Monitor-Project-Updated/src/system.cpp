@@ -15,16 +15,14 @@ using std::size_t;
 using std::string;
 using std::vector;
 
-//#include <chrono>
-//#include <thread>
 #include <algorithm>
-//#include <iostream>
 
 // DONE: Return the system's CPU
 Processor& System::Cpu() { return cpu_; }
 
 // DONE: Return a container composed of the system's processes
 vector<Process>& System::Processes() {
+    processes_.clear();
     vector<int> pids = LinuxParser::Pids();
     for(unsigned int i = 0; i < pids.size(); i++){
         processes_.push_back(Process(pids[i]));

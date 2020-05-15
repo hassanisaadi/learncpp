@@ -3,7 +3,6 @@
 #include <vector>
 #include <string>
 #include "linux_parser.h"
-//#include <unistd.h>
 #include <chrono>
 #include <thread>
 
@@ -24,8 +23,6 @@ float Processor::Utilization() {
     irq = std::stol(params[5]);     prev_irq = std::stol(prev_params[5]);
     softirq = std::stol(params[6]); prev_softirq = std::stol(prev_params[6]);
     steal = std::stol(params[7]);   prev_steal = std::stol(prev_params[7]);
-    //guest = std::stol(params[8]);
-    //guest_nice = std::stol(params[9]);
 
     long prev_Idle = prev_idle + prev_iowait;
     long prev_NonIdle = prev_user + prev_nice + prev_system +
