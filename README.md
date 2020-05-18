@@ -56,3 +56,6 @@ In this file, I just summarized code snippets from this program. It's for person
 
 ## [4. Memory Management](./04_mem/README.MD#4-memory-management)
 ## [5. Concurrency]()
+
+# Disclaimer
+All the materials, images, links are from the Udacity C++ Nanodegree program. It's just a personal use archive for myself (or someone interested).
