@@ -54,5 +54,5 @@ In this file, I just summarized code snippets from this program. It's for person
 #### [3.18.1. The Diamond Problem](./03_oop/README.md#3181-the-diamond-problem)
 ### [3.19. Generic Programming using `template`](./03_oop/README.md#319-generic-programming-using-template)
 
-## [4. Memory Management](./04_mem/README.md#4-memory-management)
+## [4. Memory Management](./04_mem/README.MD#4-memory-management)
 ## [5. Concurrency]()
