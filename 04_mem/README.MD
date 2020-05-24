@@ -314,3 +314,135 @@ size of pointer is 8 bytes and the size of the value itself is 4 bytes.
 
 In order to benefit from call-by-reference, the size of the data type passed to the function 
 has to surpass the size of the pointer on the respective architecture (i.e. 32 bit or 64 bit).
+
+## 4.9. Heap Memory
+* As opposed to local variables on the stack, memory can now be allocated in an arbitrary scope 
+  (e.g. inside a function) without it being deleted when the scope is left. Thus, as long as the 
+  address to an allocated block of memory is returned by a function, the caller can freely use it.
+
+* Local variables on the stack are allocated at **compile-time**. Thus, the size of e.g. a string 
+  variable might not be appropriate as the length of the string will not be known until the program 
+  is executed and the user inputs it. With local variables, a solution would be to allocate a 
+  long-enough array of and hope that the actual length does not exceed the buffer size. With dynamically 
+  allocated heap memory, variables are allocated at **run-time**. This means that the size of the 
+  above-mentioned string variable can be tailored to the actual length of the user input.
+
+* Heap memory is only constrained by the size of the address space and by the available memory. With 
+  modern 64 bit operating systems and large RAM memory and hard disks the programmer commands a vast 
+  amount of memory. However, if the programmer forgets to deallocate a block of heap memory, it will 
+  remain unused until the program is terminated. This is called a **memory leak**.
+
+* Unlike the stack, the heap is **shared** among multiple **threads**, which means that memory management 
+  for the heap needs to take concurrency into account as several threads might compete for the same 
+  memory resource.
+
+* When memory is allocated or deallocated on the stack, the stack pointer is simply shifted upwards or downwards. 
+  Due to the sequential structure of stack memory management, stack memory can be managed (by the operating 
+  system) easily and securely. With heap memory, allocation and deallocation can occur arbitrarily, depending 
+  on the lifetime of the variables. This can result in **fragmented memory** over time, which is much more 
+  difficult and expensive to manage.
+
+### 4.9.1. Memory Fragmentation
+A classic symptom of memory fragmentation is that you try to allocate a large block and you can’t, 
+even though you appear to have enough memory free. On systems with virtual memory however, this 
+is less of a problem, because large allocations only need to be contiguous in virtual address space, 
+not in physical address space.
+
+When memory is heavily fragmented however, memory allocations will likely take longer because the memory 
+allocator has to do more work to find a suitable space for the new object.
+
+## 4.10. Using `malloc` and `free`
+To reserve memory on the heap, one of the two functions `malloc` (stands for *Memory Allocation*) or 
+`calloc` (stands for *Cleared Memory Allocation*) is used. The header file `stdlib.h` or `malloc.h` 
+must be included to use the functions.
+
+Here is the syntax of malloc and calloc in C/C++:
+
+```cpp
+pointer_name = (cast-type*) malloc(size);
+pointer_name = (cast-type*) calloc(num_elems, size_elem);
+```
+
+`malloc` is used to dynamically allocate a single large block of memory with the specified size. 
+It returns a pointer of type void which can be cast into a pointer of any form.
+
+`calloc` is used to dynamically allocate the specified number of blocks of memory of the specified 
+type. It initializes each block with a default value '0'.
+
+Both functions return a pointer of type void which can be cast into a pointer of any form. 
+If the space for the allocation is insufficient, a NULL pointer is returned.
+
+Example:
+```cpp
+struct MyStruct {
+    int i; 
+    double d; 
+    char a[5];
+};
+
+MyStruct *p = (MyStruct*)calloc(4,sizeof(MyStruct));
+p[0].i = 1; p[0].d = 3.14159; p[0].a[0] = 'a';
+```
+
+The size of the memory area reserved with `malloc` or `calloc` can be increased or decreased 
+with the `realloc` function.
+
+```cpp
+pointer_name = (cast-type*) realloc( (cast-type*)old_memblock, new_size );
+```
+
+We can use `free` function to free the allocated memory on the heap using `malloc` or 
+`calloc` as the following example:
+
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+int main()
+{
+    void *p = malloc(100); 
+    free(p);
+
+    return 0;
+}
+```
+
+### 4.10.1. Dangling Pointer
+In the following example, a pointer `p` is copied into a new variable `p2`, which is then passed to 
+`free` AFTER the original pointer has been already released.
+
+```
+free(41143,0x1000a55c0) malloc: *** error for object 0x1003001f0: pointer being freed was not allocated.
+```
+
+In the workspace, you will see this error:
+
+```
+*** Error in './a.out': double free or corruption (fasttop): 0x0000000000755010 ***
+```
+
+```cpp
+#include <stdio.h>
+#include <stdlib.h>
+
+int main()
+{
+    void *p = malloc(100); 
+    void *p2 = p;
+    
+    free(p); // OK
+    free(p2); // ERROR
+
+    return 0;
+}
+```
+
+The pointer `p2` in the example is invalid as soon as `free(p)` is called. It still holds the address 
+to the memory location which has been freed, but may not access it anymore. Such a pointer is 
+called a "**dangling pointer**".
+
+Memory allocated with `malloc` or `calloc` is not subject to the familiar rules of variables in their 
+respective scopes. This means that they exist independently of block limits until they are released again 
+or the program is terminated. However, the pointers which refer to such heap-allocated memory are created 
+on the stack and thus only exist within a limited scope. As soon as the scope is left, the pointer variable 
+will be lost - but not the heap memory it refers to.
