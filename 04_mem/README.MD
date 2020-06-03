@@ -684,3 +684,282 @@ delete: Memory is freed again
   * it is defined `static`
 * Incorrect pairing of allocation and deallocation
 * Invalid memory access
+
+## 4.13. Copy Semantics
+The default behavior of both *copy constructor* and *assignment operator* is to perform a 
+**shallow** copy as with the example above.
+
+![Shallow Copy](./images/shallow_copy.png)
+
+Fortunately, in C++, the copying process can be controlled by defining a tailored copy constructor 
+as well as a copy assignment operator. The copying process must be closely linked to the respective 
+resource release mechanism and is often referred to as *copy-ownership policy*. Tailoring the copy 
+constructor according to your memory management policy is an important choice you often need to make 
+when designing a class.
+
+### 4.13.1. No Copying Policy
+The simplest policy of all is to forbid copying and assigning class instances all together. 
+This can be achieved by 1) declaring, but not defining a private copy constructor and assignment 
+operator OR 2) alternatively by making both public and assigning the delete operator. 
+
+The second choice is more explicit and makes it clearer to the programmer that copying has been 
+actively forbidden.
+
+```cpp
+class NoCopyClass1
+{
+private:
+    NoCopyClass1(const NoCopyClass1 &);
+    NoCopyClass1 &operator=(const NoCopyClass1 &);
+
+public:
+    NoCopyClass1(){};
+};
+
+class NoCopyClass2
+{
+public:
+    NoCopyClass2(){}
+    NoCopyClass2(const NoCopyClass2 &) = delete;
+    NoCopyClass2 &operator=(const NoCopyClass2 &) = delete;
+};
+
+int main()
+{
+    NoCopyClass1 original1;
+    NoCopyClass1 copy1a(original1); // copy c’tor
+    NoCopyClass1 copy1b = original1; // assigment operator
+
+    NoCopyClass2 original2;
+    NoCopyClass2 copy2a(original2); // copy c’tor
+    NoCopyClass2 copy2b = original2; // assigment operator
+
+    return 0;
+}
+```
+
+On compiling, we get the following error messages:
+
+```
+error: calling a private constructor of class 'NoCopyClass1'
+    NoCopyClass1 copy1(original1);
+    NoCopyClass1 copy1b = original1; 
+
+error: call to deleted constructor of 'NoCopyClass2'
+    NoCopyClass2 copy2(original2);
+    NoCopyClass2 copy2b = original2; 
+```
+
+Both cases effectively prevent the original object from being copied or assigned. 
+In the C++11 standard library, there are some classes for multi-threaded synchronization which 
+use the no copying policy.
+
+### 4.13.2. Exclusive Ownership Policy
+This policy states that whenever a resource management object is copied, the resource handle 
+is transferred from the source pointer to the destination pointer. In the process, the source 
+pointer is set to `nullptr` to make ownership exclusive. At any time, the resource handle belongs 
+only to a single object, which is responsible for its deletion when it is no longer needed.
+
+```cpp
+#include <iostream>
+
+class ExclusiveCopy
+{
+private:
+    int *_myInt;
+
+public:
+    ExclusiveCopy()
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        std::cout << "resource allocated" << std::endl;
+    }
+    ~ExclusiveCopy()
+    {
+        if (_myInt != nullptr)
+        {
+            free(_myInt);
+            std::cout << "resource freed" << std::endl;
+        }
+            
+    }
+    ExclusiveCopy(ExclusiveCopy &source)
+    {
+        _myInt = source._myInt;
+        source._myInt = nullptr;
+    }
+    ExclusiveCopy &operator=(ExclusiveCopy &source)
+    {
+        _myInt = source._myInt;
+        source._myInt = nullptr;
+        return *this;
+    }
+};
+
+int main()
+{
+    ExclusiveCopy source;
+    ExclusiveCopy destination(source);
+
+    return 0;
+}
+```
+
+This example is not the way exclusive ownership is handled in the standard template library. 
+One problem in this implementation is that for a short time there are effectively two valid 
+handles to the same resource - after the handle has been copied and before it is set to `nullptr`. 
+In concurrent programs, this would cause a data **race** for the resource. A much better alternative 
+to handle exclusive ownership in C++ would be to use move semantics.
+
+### 4.13.3. Deep Copying Policy
+With this policy, copying and assigning class instances to each other is possible without the 
+danger of resource conflicts. The idea is to allocate proprietary memory in the destination object 
+and then to copy the content to which the source object handle is pointing into the newly allocated 
+block of memory. This way, the content is preserved during copy or assignment. However, this approach 
+increases the memory demands and the uniqueness of the data is lost: After the deep copy has been made, 
+two versions of the same resource exist in memory.
+
+```cpp
+#include <iostream>
+
+class DeepCopy
+{
+private:
+    int *_myInt;
+
+public:
+    DeepCopy(int val)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        *_myInt = val;
+        std::cout << "resource allocated at address " << _myInt << std::endl;
+    }
+    ~DeepCopy()
+    {
+        free(_myInt);
+        std::cout << "resource freed at address " << _myInt << std::endl;
+    }
+    DeepCopy(DeepCopy &source)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        *_myInt = *source._myInt;
+        std::cout << "resource allocated at address " << _myInt << " with _myInt = " << *_myInt << std::endl;
+    }
+    DeepCopy &operator=(DeepCopy &source)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        std::cout << "resource allocated at address " << _myInt << " with _myInt=" << *_myInt << std::endl;
+        *_myInt = *source._myInt;
+        return *this;
+    }
+};
+
+int main()
+{
+    DeepCopy source(42);
+    DeepCopy dest1(source);
+    DeepCopy dest2 = dest1;
+
+    return 0;
+}
+```
+
+The output of the program looks like the following:
+
+```
+resource allocated at address 0x100300060
+resource allocated at address 0x100300070 with _myInt = 42
+resource allocated at address 0x100300080 with _myInt = 42
+resource freed at address 0x100300080
+resource freed at address 0x100300070
+resource freed at address 0x100300060
+```
+
+As can be seen, all copies have the same value of 42 while the address of the handle 
+differs between `source`, `dest1` and `dest2`.
+
+### 4.13.4. Shared Ownership Policy
+The idea is to perform a copy or assignment similar to the default behavior, i.e. copying 
+the handle instead of the content (as with a shallow copy) while at the same time keeping 
+track of the number of instances that also point to the same resource. Each time an instance 
+goes out of scope, the counter is decremented. Once the last object is about to be deleted, 
+it can safely deallocate the memory resource. We will see later in this course that this is 
+the central idea of `unique_ptr`, which is a representative of the group of smart pointers.
+
+```cpp
+#include <iostream>
+
+class SharedCopy
+{
+private:
+    int *_myInt;
+    static int _cnt;
+
+public:
+    SharedCopy(int val);
+    ~SharedCopy();
+    SharedCopy(SharedCopy &source);
+};
+
+int SharedCopy::_cnt = 0;
+
+SharedCopy::SharedCopy(int val)
+{
+    _myInt = (int *)malloc(sizeof(int));
+    *_myInt = val;
+    ++_cnt;
+    std::cout << "resource allocated at address " << _myInt << std::endl;
+}
+
+SharedCopy::~SharedCopy()
+{
+    --_cnt;
+    if (_cnt == 0)
+    {
+        free(_myInt);
+        std::cout << "resource freed at address " << _myInt << std::endl;
+    }
+    else
+    {
+        std::cout << "instance at address " << this << " goes out of scope with _cnt = " << _cnt << std::endl;
+    }
+}
+
+SharedCopy::SharedCopy(SharedCopy &source)
+{
+    _myInt = source._myInt;
+    ++_cnt;
+    std::cout << _cnt << " instances with handles to address " << _myInt << " with _myInt = " << *_myInt << std::endl;
+}
+
+int main()
+{
+    SharedCopy source(42);
+    SharedCopy destination1(source);
+    SharedCopy destination2(source);
+    SharedCopy destination3(source);
+
+    return 0;
+}
+```
+
+The output of the program is the following:
+
+```
+resource allocated at address 0x100300060
+2 instances with handles to address 0x100300060 with _myInt = 42
+3 instances with handles to address 0x100300060 with _myInt = 42
+4 instances with handles to address 0x100300060 with _myInt = 42
+instance at address 0x7ffeefbff6f8 goes out of scope with _cnt = 3
+instance at address 0x7ffeefbff700 goes out of scope with _cnt = 2
+instance at address 0x7ffeefbff718 goes out of scope with _cnt = 1
+resource freed at address 0x100300060
+```
+
+As can be seen, the memory is released only once as soon as the reference counter reaches zero.
+
+The **Rule of Three** states that if a class needs to have an overloaded copy constructor, copy 
+assignment operator, ~or~ destructor, then it must also implement the other two as well to ensure 
+that memory is managed consistently.
+
+## 4.14. Lvalues and Rvalues
