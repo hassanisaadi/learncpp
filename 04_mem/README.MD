@@ -664,7 +664,7 @@ Destructor is called
 delete: Memory is freed again 
 ```
 
-### 4.11.3. Reasons for overloading `new` and `delete`
+### 4.11.4. Reasons for overloading `new` and `delete`
 1. The overloaded new operator function allows to add additional parameters. 
   Therefore, a class can have multiple overloaded new operator functions. This gives the 
   programmer more flexibility in customizing the memory allocation for objects.
@@ -673,3 +673,14 @@ delete: Memory is freed again
 3. By adding exception handling capabilities into new and delete, the code can be made more robust.
 4. It is very easy to add customized behavior, such as overwriting deallocated memory with zeros in 
   order to increase the security of critical application data.
+
+## 4.12. Overview of memory management problems
+* Memory Leaks
+* Buffer Overruns
+* Uninitialized Memory: Generally, a variable will be automatically initialized in these cases:
+  * it is a class instance where the default constructor initializes all primitive types
+  * array initializer syntax is used, such as `int a[10] = {}`
+  * it is a global or extern variable
+  * it is defined `static`
+* Incorrect pairing of allocation and deallocation
+* Invalid memory access
