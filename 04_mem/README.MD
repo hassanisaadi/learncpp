@@ -446,3 +446,520 @@ respective scopes. This means that they exist independently of block limits unti
 or the program is terminated. However, the pointers which refer to such heap-allocated memory are created 
 on the stack and thus only exist within a limited scope. As soon as the scope is left, the pointer variable 
 will be lost - but not the heap memory it refers to.
+
+## 4.11. Using `new` and `delete`
+`new` and `delete` are operators while `malloc` and `free` are library function.
+
+If we were to create a C++ object with `malloc`, the constructor and destructor of such an object 
+would not be called.
+
+1. **Constructors / Destructors**: Unlike `malloc( sizeof(MyClass) )`, the call `new MyClass()` calls 
+  the constructor. Similarly, delete calls the destructor.
+2. **Type safety**: `malloc` returns a void pointer, which needs to be cast into the appropriate 
+  data type it points to. This is not type safe, as you can freely vary the pointer type without 
+  any warnings or errors from the compiler as in the following small example:
+  ```MyObject *p = (MyObject*)malloc(sizeof(int));```
+3. **Operator Overloading**: As `malloc` and `free` are functions defined in a library, their behavior 
+  can not be changed easily. The new and delete operators however can be overloaded by a class in order 
+  to include optional proprietary behavior.
+
+As with with `malloc` and `new`, a call to `new` has to be followed by a call to `delete`. 
+Otherwise it will yields to *memory leak*.
+
+```cpp
+#include <stdlib.h>
+#include <iostream>
+
+class MyClass
+{
+private:
+    int *_number;
+
+public:
+    MyClass()
+    {
+        std::cout << "Allocate memory\n";
+        _number = (int *)malloc(sizeof(int));
+    }
+    ~MyClass()
+    {
+        std::cout << "Delete memory\n";
+        free(_number);
+    }
+    void setNumber(int number)
+    {
+        *_number = number;
+        std::cout << "Number: " << _number << "\n";
+    }
+};
+
+
+int main()
+{
+    // allocate memory using malloc
+    // will throw error, because _number has not been allocated yet.
+    MyClass *myClass = (MyClass *)malloc(sizeof(MyClass));
+    myClass->setNumber(42); // EXC_BAD_ACCESS
+    free(myClass);
+	  
+	// allocate memory using new
+    MyClass *myClass = new MyClass();
+    myClass->setNumber(42); // works as expected
+    delete myClass;
+
+    return 0;
+}
+```
+
+### 4.11.1. Optimizing performance with `palcement new`
+In some cases, it makes sense to separate memory allocation from object construction. 
+Consider a case where we need to reconstruct an object several times. If we were to 
+use the standard `new`/`delete` construct, memory would be allocated and freed unnecessarily 
+as only the content of the memory block changes but not its size. By separating allocation from 
+construction, we can get a significant performance increase.
+
+C++ allows us to do this by using a construct called `placement new`: With `placement new`, 
+we can pass a preallocated memory and construct an object at that memory location. 
+Consider the following code:
+```cpp
+void *memory = malloc(sizeof(MyClass));
+MyClass *object = new (memory) MyClass;
+```
+The syntax `new (memory)` is denoted as placement new. The difference to the "conventional" new 
+we have been using so far is that no memory is allocated. The call constructs an object and 
+places it in the assigned memory location. There is however, no delete equivalent to placement new, 
+so we have to call the **destructor** explicitly in this case instead of using `delete` as we would 
+have done with a regular call to new:
+```cpp
+object->~MyClass();
+free(memory);
+```
+
+### 4.11.2. Overloading `new` and `delete`
+One advantage of `new`/`delete` over `malloc`/`free` is that we can overload `new`/`delete` and change
+their behavior.
+
+The syntax for overloading the new and delete operator looks as follows
+```cpp
+void* operator new(size_t size);
+void operator delete(void*);
+```
+
+Example: 
+
+```cpp
+#include <iostream>
+#include <stdlib.h>
+
+class MyClass
+{
+    int _mymember;
+
+public:
+    MyClass()
+    {
+        std::cout << "Constructor is called\n";
+    }
+
+    ~MyClass()
+    {
+        std::cout << "Destructor is called\n";
+    }
+
+    void *operator new(size_t size)
+    {
+        std::cout << "new: Allocating " << size << " bytes of memory" << std::endl;
+        void *p = malloc(size);
+
+        return p;
+    }
+
+    void operator delete(void *p)
+    {
+        std::cout << "delete: Memory is freed again " << std::endl;
+        free(p);
+    }
+};
+
+int main()
+{
+    MyClass *p = new MyClass();
+    delete p;
+}
+```
+
+### 4.11.3. Overloading `new[]` and `delete[]`
+we can use the following code to create an array of objects:
+```cpp
+void* operator new[](size_t size);
+void operator delete[](void*);
+```
+
+Example:
+
+```cpp
+#include <iostream>
+#include <stdlib.h>
+
+class MyClass
+{
+    int _mymember;
+
+public:
+    MyClass()
+    {
+        std::cout << "Constructor is called\n";
+    }
+
+    ~MyClass()
+    {
+        std::cout << "Destructor is called\n";
+    }
+
+    void *operator new[](size_t size)
+    {
+        std::cout << "new: Allocating " << size << " bytes of memory" << std::endl;
+        void *p = malloc(size);
+
+        return p;
+    }
+
+    void operator delete[](void *p)
+    {
+        std::cout << "delete: Memory is freed again " << std::endl;
+        free(p);
+    }
+};
+
+int main()
+{
+    MyClass *p = new MyClass[3]();
+    delete[] p;
+}
+```
+
+The output for the above code looks as follows:
+```
+new: Allocating 20 bytes of memory
+Constructor is called
+Constructor is called
+Constructor is called
+Destructor is called
+Destructor is called
+Destructor is called
+delete: Memory is freed again 
+```
+
+Interestingly, the memory requirement is larger than expected: With new, the block size was 4 bytes, 
+which is exactly the space required for a single integer. Thus, with three integers, it should now 
+be 12 bytes instead of 20 bytes. The reason for this is the memory allocation overhead that the compiler 
+needs to keep track of the allocated blocks of memory - which in itself consumes memory. If we change 
+the above call to e.g. `new MyClass[100]()`, we will see that the overhead of 8 bytes does not change:
+
+```
+new: Allocating 408 bytes of memory
+Constructor is called
+…
+Destructor is called
+delete: Memory is freed again 
+```
+
+### 4.11.4. Reasons for overloading `new` and `delete`
+1. The overloaded new operator function allows to add additional parameters. 
+  Therefore, a class can have multiple overloaded new operator functions. This gives the 
+  programmer more flexibility in customizing the memory allocation for objects.
+2. Overloaded the new and delete operators provides an easy way to integrate a mechanism 
+  similar to garbage collection capabilities (such as in Java).
+3. By adding exception handling capabilities into new and delete, the code can be made more robust.
+4. It is very easy to add customized behavior, such as overwriting deallocated memory with zeros in 
+  order to increase the security of critical application data.
+
+## 4.12. Overview of memory management problems
+* Memory Leaks
+* Buffer Overruns
+* Uninitialized Memory: Generally, a variable will be automatically initialized in these cases:
+  * it is a class instance where the default constructor initializes all primitive types
+  * array initializer syntax is used, such as `int a[10] = {}`
+  * it is a global or extern variable
+  * it is defined `static`
+* Incorrect pairing of allocation and deallocation
+* Invalid memory access
+
+## 4.13. Copy Semantics
+The default behavior of both *copy constructor* and *assignment operator* is to perform a 
+**shallow** copy as with the example above.
+
+![Shallow Copy](./images/shallow_copy.png)
+
+Fortunately, in C++, the copying process can be controlled by defining a tailored copy constructor 
+as well as a copy assignment operator. The copying process must be closely linked to the respective 
+resource release mechanism and is often referred to as *copy-ownership policy*. Tailoring the copy 
+constructor according to your memory management policy is an important choice you often need to make 
+when designing a class.
+
+### 4.13.1. No Copying Policy
+The simplest policy of all is to forbid copying and assigning class instances all together. 
+This can be achieved by 1) declaring, but not defining a private copy constructor and assignment 
+operator OR 2) alternatively by making both public and assigning the delete operator. 
+
+The second choice is more explicit and makes it clearer to the programmer that copying has been 
+actively forbidden.
+
+```cpp
+class NoCopyClass1
+{
+private:
+    NoCopyClass1(const NoCopyClass1 &);
+    NoCopyClass1 &operator=(const NoCopyClass1 &);
+
+public:
+    NoCopyClass1(){};
+};
+
+class NoCopyClass2
+{
+public:
+    NoCopyClass2(){}
+    NoCopyClass2(const NoCopyClass2 &) = delete;
+    NoCopyClass2 &operator=(const NoCopyClass2 &) = delete;
+};
+
+int main()
+{
+    NoCopyClass1 original1;
+    NoCopyClass1 copy1a(original1); // copy c’tor
+    NoCopyClass1 copy1b = original1; // assigment operator
+
+    NoCopyClass2 original2;
+    NoCopyClass2 copy2a(original2); // copy c’tor
+    NoCopyClass2 copy2b = original2; // assigment operator
+
+    return 0;
+}
+```
+
+On compiling, we get the following error messages:
+
+```
+error: calling a private constructor of class 'NoCopyClass1'
+    NoCopyClass1 copy1(original1);
+    NoCopyClass1 copy1b = original1; 
+
+error: call to deleted constructor of 'NoCopyClass2'
+    NoCopyClass2 copy2(original2);
+    NoCopyClass2 copy2b = original2; 
+```
+
+Both cases effectively prevent the original object from being copied or assigned. 
+In the C++11 standard library, there are some classes for multi-threaded synchronization which 
+use the no copying policy.
+
+### 4.13.2. Exclusive Ownership Policy
+This policy states that whenever a resource management object is copied, the resource handle 
+is transferred from the source pointer to the destination pointer. In the process, the source 
+pointer is set to `nullptr` to make ownership exclusive. At any time, the resource handle belongs 
+only to a single object, which is responsible for its deletion when it is no longer needed.
+
+```cpp
+#include <iostream>
+
+class ExclusiveCopy
+{
+private:
+    int *_myInt;
+
+public:
+    ExclusiveCopy()
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        std::cout << "resource allocated" << std::endl;
+    }
+    ~ExclusiveCopy()
+    {
+        if (_myInt != nullptr)
+        {
+            free(_myInt);
+            std::cout << "resource freed" << std::endl;
+        }
+            
+    }
+    ExclusiveCopy(ExclusiveCopy &source)
+    {
+        _myInt = source._myInt;
+        source._myInt = nullptr;
+    }
+    ExclusiveCopy &operator=(ExclusiveCopy &source)
+    {
+        _myInt = source._myInt;
+        source._myInt = nullptr;
+        return *this;
+    }
+};
+
+int main()
+{
+    ExclusiveCopy source;
+    ExclusiveCopy destination(source);
+
+    return 0;
+}
+```
+
+This example is not the way exclusive ownership is handled in the standard template library. 
+One problem in this implementation is that for a short time there are effectively two valid 
+handles to the same resource - after the handle has been copied and before it is set to `nullptr`. 
+In concurrent programs, this would cause a data **race** for the resource. A much better alternative 
+to handle exclusive ownership in C++ would be to use move semantics.
+
+### 4.13.3. Deep Copying Policy
+With this policy, copying and assigning class instances to each other is possible without the 
+danger of resource conflicts. The idea is to allocate proprietary memory in the destination object 
+and then to copy the content to which the source object handle is pointing into the newly allocated 
+block of memory. This way, the content is preserved during copy or assignment. However, this approach 
+increases the memory demands and the uniqueness of the data is lost: After the deep copy has been made, 
+two versions of the same resource exist in memory.
+
+```cpp
+#include <iostream>
+
+class DeepCopy
+{
+private:
+    int *_myInt;
+
+public:
+    DeepCopy(int val)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        *_myInt = val;
+        std::cout << "resource allocated at address " << _myInt << std::endl;
+    }
+    ~DeepCopy()
+    {
+        free(_myInt);
+        std::cout << "resource freed at address " << _myInt << std::endl;
+    }
+    DeepCopy(DeepCopy &source)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        *_myInt = *source._myInt;
+        std::cout << "resource allocated at address " << _myInt << " with _myInt = " << *_myInt << std::endl;
+    }
+    DeepCopy &operator=(DeepCopy &source)
+    {
+        _myInt = (int *)malloc(sizeof(int));
+        std::cout << "resource allocated at address " << _myInt << " with _myInt=" << *_myInt << std::endl;
+        *_myInt = *source._myInt;
+        return *this;
+    }
+};
+
+int main()
+{
+    DeepCopy source(42);
+    DeepCopy dest1(source);
+    DeepCopy dest2 = dest1;
+
+    return 0;
+}
+```
+
+The output of the program looks like the following:
+
+```
+resource allocated at address 0x100300060
+resource allocated at address 0x100300070 with _myInt = 42
+resource allocated at address 0x100300080 with _myInt = 42
+resource freed at address 0x100300080
+resource freed at address 0x100300070
+resource freed at address 0x100300060
+```
+
+As can be seen, all copies have the same value of 42 while the address of the handle 
+differs between `source`, `dest1` and `dest2`.
+
+### 4.13.4. Shared Ownership Policy
+The idea is to perform a copy or assignment similar to the default behavior, i.e. copying 
+the handle instead of the content (as with a shallow copy) while at the same time keeping 
+track of the number of instances that also point to the same resource. Each time an instance 
+goes out of scope, the counter is decremented. Once the last object is about to be deleted, 
+it can safely deallocate the memory resource. We will see later in this course that this is 
+the central idea of `unique_ptr`, which is a representative of the group of smart pointers.
+
+```cpp
+#include <iostream>
+
+class SharedCopy
+{
+private:
+    int *_myInt;
+    static int _cnt;
+
+public:
+    SharedCopy(int val);
+    ~SharedCopy();
+    SharedCopy(SharedCopy &source);
+};
+
+int SharedCopy::_cnt = 0;
+
+SharedCopy::SharedCopy(int val)
+{
+    _myInt = (int *)malloc(sizeof(int));
+    *_myInt = val;
+    ++_cnt;
+    std::cout << "resource allocated at address " << _myInt << std::endl;
+}
+
+SharedCopy::~SharedCopy()
+{
+    --_cnt;
+    if (_cnt == 0)
+    {
+        free(_myInt);
+        std::cout << "resource freed at address " << _myInt << std::endl;
+    }
+    else
+    {
+        std::cout << "instance at address " << this << " goes out of scope with _cnt = " << _cnt << std::endl;
+    }
+}
+
+SharedCopy::SharedCopy(SharedCopy &source)
+{
+    _myInt = source._myInt;
+    ++_cnt;
+    std::cout << _cnt << " instances with handles to address " << _myInt << " with _myInt = " << *_myInt << std::endl;
+}
+
+int main()
+{
+    SharedCopy source(42);
+    SharedCopy destination1(source);
+    SharedCopy destination2(source);
+    SharedCopy destination3(source);
+
+    return 0;
+}
+```
+
+The output of the program is the following:
+
+```
+resource allocated at address 0x100300060
+2 instances with handles to address 0x100300060 with _myInt = 42
+3 instances with handles to address 0x100300060 with _myInt = 42
+4 instances with handles to address 0x100300060 with _myInt = 42
+instance at address 0x7ffeefbff6f8 goes out of scope with _cnt = 3
+instance at address 0x7ffeefbff700 goes out of scope with _cnt = 2
+instance at address 0x7ffeefbff718 goes out of scope with _cnt = 1
+resource freed at address 0x100300060
+```
+
+As can be seen, the memory is released only once as soon as the reference counter reaches zero.
+
+The **Rule of Three** states that if a class needs to have an overloaded copy constructor, copy 
+assignment operator, ~or~ destructor, then it must also implement the other two as well to ensure 
+that memory is managed consistently.
+
+## 4.14. Lvalues and Rvalues
