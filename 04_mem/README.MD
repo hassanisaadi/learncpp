@@ -446,3 +446,230 @@ respective scopes. This means that they exist independently of block limits unti
 or the program is terminated. However, the pointers which refer to such heap-allocated memory are created 
 on the stack and thus only exist within a limited scope. As soon as the scope is left, the pointer variable 
 will be lost - but not the heap memory it refers to.
+
+## 4.11. Using `new` and `delete`
+`new` and `delete` are operators while `malloc` and `free` are library function.
+
+If we were to create a C++ object with `malloc`, the constructor and destructor of such an object 
+would not be called.
+
+1. **Constructors / Destructors**: Unlike `malloc( sizeof(MyClass) )`, the call `new MyClass()` calls 
+  the constructor. Similarly, delete calls the destructor.
+2. **Type safety**: `malloc` returns a void pointer, which needs to be cast into the appropriate 
+  data type it points to. This is not type safe, as you can freely vary the pointer type without 
+  any warnings or errors from the compiler as in the following small example:
+  ```MyObject *p = (MyObject*)malloc(sizeof(int));```
+3. **Operator Overloading**: As `malloc` and `free` are functions defined in a library, their behavior 
+  can not be changed easily. The new and delete operators however can be overloaded by a class in order 
+  to include optional proprietary behavior.
+
+As with with `malloc` and `new`, a call to `new` has to be followed by a call to `delete`. 
+Otherwise it will yields to *memory leak*.
+
+```cpp
+#include <stdlib.h>
+#include <iostream>
+
+class MyClass
+{
+private:
+    int *_number;
+
+public:
+    MyClass()
+    {
+        std::cout << "Allocate memory\n";
+        _number = (int *)malloc(sizeof(int));
+    }
+    ~MyClass()
+    {
+        std::cout << "Delete memory\n";
+        free(_number);
+    }
+    void setNumber(int number)
+    {
+        *_number = number;
+        std::cout << "Number: " << _number << "\n";
+    }
+};
+
+
+int main()
+{
+    // allocate memory using malloc
+    // will throw error, because _number has not been allocated yet.
+    MyClass *myClass = (MyClass *)malloc(sizeof(MyClass));
+    myClass->setNumber(42); // EXC_BAD_ACCESS
+    free(myClass);
+	  
+	// allocate memory using new
+    MyClass *myClass = new MyClass();
+    myClass->setNumber(42); // works as expected
+    delete myClass;
+
+    return 0;
+}
+```
+
+### 4.11.1. Optimizing performance with `palcement new`
+In some cases, it makes sense to separate memory allocation from object construction. 
+Consider a case where we need to reconstruct an object several times. If we were to 
+use the standard `new`/`delete` construct, memory would be allocated and freed unnecessarily 
+as only the content of the memory block changes but not its size. By separating allocation from 
+construction, we can get a significant performance increase.
+
+C++ allows us to do this by using a construct called `placement new`: With `placement new`, 
+we can pass a preallocated memory and construct an object at that memory location. 
+Consider the following code:
+```cpp
+void *memory = malloc(sizeof(MyClass));
+MyClass *object = new (memory) MyClass;
+```
+The syntax `new (memory)` is denoted as placement new. The difference to the "conventional" new 
+we have been using so far is that no memory is allocated. The call constructs an object and 
+places it in the assigned memory location. There is however, no delete equivalent to placement new, 
+so we have to call the **destructor** explicitly in this case instead of using `delete` as we would 
+have done with a regular call to new:
+```cpp
+object->~MyClass();
+free(memory);
+```
+
+### 4.11.2. Overloading `new` and `delete`
+One advantage of `new`/`delete` over `malloc`/`free` is that we can overload `new`/`delete` and change
+their behavior.
+
+The syntax for overloading the new and delete operator looks as follows
+```cpp
+void* operator new(size_t size);
+void operator delete(void*);
+```
+
+Example: 
+
+```cpp
+#include <iostream>
+#include <stdlib.h>
+
+class MyClass
+{
+    int _mymember;
+
+public:
+    MyClass()
+    {
+        std::cout << "Constructor is called\n";
+    }
+
+    ~MyClass()
+    {
+        std::cout << "Destructor is called\n";
+    }
+
+    void *operator new(size_t size)
+    {
+        std::cout << "new: Allocating " << size << " bytes of memory" << std::endl;
+        void *p = malloc(size);
+
+        return p;
+    }
+
+    void operator delete(void *p)
+    {
+        std::cout << "delete: Memory is freed again " << std::endl;
+        free(p);
+    }
+};
+
+int main()
+{
+    MyClass *p = new MyClass();
+    delete p;
+}
+```
+
+### 4.11.3. Overloading `new[]` and `delete[]`
+we can use the following code to create an array of objects:
+```cpp
+void* operator new[](size_t size);
+void operator delete[](void*);
+```
+
+Example:
+
+```cpp
+#include <iostream>
+#include <stdlib.h>
+
+class MyClass
+{
+    int _mymember;
+
+public:
+    MyClass()
+    {
+        std::cout << "Constructor is called\n";
+    }
+
+    ~MyClass()
+    {
+        std::cout << "Destructor is called\n";
+    }
+
+    void *operator new[](size_t size)
+    {
+        std::cout << "new: Allocating " << size << " bytes of memory" << std::endl;
+        void *p = malloc(size);
+
+        return p;
+    }
+
+    void operator delete[](void *p)
+    {
+        std::cout << "delete: Memory is freed again " << std::endl;
+        free(p);
+    }
+};
+
+int main()
+{
+    MyClass *p = new MyClass[3]();
+    delete[] p;
+}
+```
+
+The output for the above code looks as follows:
+```
+new: Allocating 20 bytes of memory
+Constructor is called
+Constructor is called
+Constructor is called
+Destructor is called
+Destructor is called
+Destructor is called
+delete: Memory is freed again 
+```
+
+Interestingly, the memory requirement is larger than expected: With new, the block size was 4 bytes, 
+which is exactly the space required for a single integer. Thus, with three integers, it should now 
+be 12 bytes instead of 20 bytes. The reason for this is the memory allocation overhead that the compiler 
+needs to keep track of the allocated blocks of memory - which in itself consumes memory. If we change 
+the above call to e.g. `new MyClass[100]()`, we will see that the overhead of 8 bytes does not change:
+
+```
+new: Allocating 408 bytes of memory
+Constructor is called
+…
+Destructor is called
+delete: Memory is freed again 
+```
+
+### 4.11.3. Reasons for overloading `new` and `delete`
+1. The overloaded new operator function allows to add additional parameters. 
+  Therefore, a class can have multiple overloaded new operator functions. This gives the 
+  programmer more flexibility in customizing the memory allocation for objects.
+2. Overloaded the new and delete operators provides an easy way to integrate a mechanism 
+  similar to garbage collection capabilities (such as in Java).
+3. By adding exception handling capabilities into new and delete, the code can be made more robust.
+4. It is very easy to add customized behavior, such as overwriting deallocated memory with zeros in 
+  order to increase the security of critical application data.
