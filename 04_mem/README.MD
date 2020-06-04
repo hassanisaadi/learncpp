@@ -963,3 +963,560 @@ assignment operator, ~or~ destructor, then it must also implement the other two 
 that memory is managed consistently.
 
 ## 4.14. Lvalues and Rvalues
+* **Lvalues** have an address that can be accessed. They are expressions whose evaluation by the 
+  compiler determines the identity of objects or functions.
+* **Prvalues** (Rvalues) do not have an address that is accessible directly. They are temporary expressions 
+  used to initialize objects or compute the value of the operand of an operator.
+  
+In more general terms, an lvalue is an entity that points to a specific memory location. An rvalue 
+is usually a short-lived object, which is only needed in a narrow local scope.
+
+```cpp
+int main()
+{
+    // initialize some variables on the stack
+    int i, j, *p;
+
+    // correct usage of lvalues and rvalues
+    
+    i = 42; // i is an lvalue and 42 is an rvalue
+    
+    p = new int;
+    *p = i; // the dereferenced pointer is an lvalue
+    delete p; 
+    
+    ((i < 42) ? i : j) = 23; // the conditional operator returns an lvalue (eiter i or j)
+
+    // incorrect usage of lvalues and rvalues
+    //42 = i; // error : the left operand must be an lvalue
+    //j * 42 = 23; // error : the left operand must be an lvalue
+
+    return 0; 
+}
+```
+
+### 4.14.1. Lvalue References
+An lvalue reference can be considered as an alternative name for an object. It is a 
+reference that binds to an lvalue and is declared using an optional list of specifiers 
+followed by the reference declarator `&`. The following code sample declares an integer 
+`i` and a reference `j` which can be used as an alias for the existing object.
+
+```cpp
+#include <iostream>
+
+int main()
+{
+    int i = 1; 
+    int &j = i; 
+    ++i;
+    ++j;
+
+    std::cout << "i = " << i << ", j = " << j << std::endl;
+
+    return 0;
+}
+```
+
+The output of the program is
+
+```
+i = 3, j = 3
+```
+
+We can see that the lvalue reference `j` can be used just as `i` can. A change to either `i` 
+or `j` will affect the same memory location on the stack.
+
+One of the primary use-cases for lvalue references is the pass-by-reference semantics in 
+function calls as in the following example.
+
+```cpp
+#include <iostream>
+
+void myFunction(int &val)
+{
+    ++val;
+}
+
+int main()
+{
+    int i = 1; 
+    myFunction(i);
+
+    std::cout << "i = " << i << std::endl;
+
+    return 0;
+}
+```
+
+The function `myFunction` has an lvalue reference as a parameter, which establishes an alias 
+to the integer `i` which is passed to it in `main`.
+
+### 4.14.2. Rvalue References
+
+```cpp
+#include <iostream>
+
+void myFunction(int &val)
+{
+    std::cout << "val = " << val << std::endl;
+}
+
+int main()
+{
+    int j = 42;
+    myFunction(j);
+
+    myFunction(42);
+
+    int k = 23; 
+    myFunction(j+k);
+
+    return 0; 
+}
+```
+
+In the above example, the last two `myFunction` calls throw errors because the argument 
+is not an lvalue.
+
+Since C++11, there is a new type available called *rvalue reference*, which can be identified 
+from the double ampersand `&&` after a type name. With this operator, it is possible to store 
+and even modify an rvalue, i.e. a temporary object which would otherwise be lost quickly.
+
+```cpp
+#include <iostream>
+
+int main()
+{
+    int i = 1; 
+    int j = 2; 
+    int k = i + j; 
+    int &&l = i + j; 
+
+    std::cout << "k = " << k << ", l = " << l << std::endl;
+
+    return 0; 
+}
+```
+
+After creating the integers `i` and `j` on the stack, the sum of both is added to a third 
+integer `k`. In the first and second assignment, `i` and `j` are created as lvalues, while 
+`1` and `2` are rvalues, whose value is copied into the memory location of `i` and `j`. 
+Then, a third lvalue, `k`, is created. The sum `i+j` is created as an rvalue, which holds 
+the result of the addition before being copied into the memory location of `k`. This is 
+quite a lot of copying and holding of temporary values in memory. With an rvalue reference, 
+this can be done more efficiently.
+
+The expression `int &&l` creates an rvalue reference, to which the address of the temporary 
+object is assigned, that holds the result of the addition. So instead of first creating the 
+rvalue `i+j`, then copying it and finally deleting it, we can now hold the temporary object 
+in memory. This is much more efficient than the first approach, even though saving a few bytes 
+of storage in the example might not seem like much at first glance. One of the most important 
+aspects of rvalue references is that they pave the way for move semantics, which is a mighty 
+technique in modern C++ to optimize memory usage and processing speed. Move semantics and rvalue 
+references make it possible to write code that transfers resources such as dynamically allocated 
+memory from one object to another in a very efficient manner and also supports the concept of 
+exclusive ownership.
+
+## 4.15. Move Semantics
+
+### 4.15.1. Rvalue references and `std::move`
+
+```cpp
+#include <iostream>
+
+void myFunction(int &&val)
+{
+    std::cout << "val = " << val << std::endl;
+}
+
+int main()
+{
+    myFunction(42);
+
+    return 0; 
+}
+```
+
+The important message of the function argument of `myFunction` to the programmer is: 
+*The object that binds to the rvalue reference &&val is yours*, it is not needed anymore 
+within the scope of the caller (which is `main`). This is interesting from two perspectives:
+
+1. Passing values like this **improves performance** as no temporary copy needs to be 
+  made anymore and
+2. **ownership changes**, since the object the reference binds to has been abandoned by the 
+  caller and now binds to a handle which is available only to the receiver. This could not 
+  have been achieved with lvalue references as any change to the object that binds to the 
+  lvalue reference would also be visible on the caller side.
+  
+*Rvalue references are themselves lvalues*. While this might seem confusing at first glance, 
+it really is the mechanism that enables move semantics: A reference is always defined in a 
+certain context (such as in the above example the variable val). Even though the object it 
+refers to (the number 42) may be disposable in the context it has been created (the main function), 
+it is not disposable in the context of the reference . So within the scope of `myFunction`, `val` 
+is an lvalue as it gives access to the memory location where the number 42 is stored.
+
+Note however that in the above code example we cannot pass an lvalue to myFunction, 
+because an rvalue reference cannot bind to an lvalue. The code
+
+```cpp
+int i = 23;
+myFunction(i)
+```
+
+would result in a compiler error. There is a solution to this problem though: The function 
+`std::move` converts an lvalue into an rvalue (actually, to be exact, into an xvalue), 
+which makes it possible to use the lvalue as an argument for the function:
+
+```cpp
+int i = 23; 
+myFunction(std::move(i));
+```
+
+In doing this, we state that in the scope of `main` we will not use `i` anymore, which 
+now exists only in the scope of `myFunction`.
+
+### 4.15.2. Rule of Three
+
+```cpp
+#include <stdlib.h>
+#include <iostream>
+
+class MyMovableClass
+{
+private:
+    int _size;
+    int *_data;
+
+public:
+    MyMovableClass(size_t size) // constructor
+    {
+        _size = size;
+        _data = new int[_size];
+        std::cout << "CREATING instance of MyMovableClass at " << this << " allocated with size = " << _size*sizeof(int)  << " bytes" << std::endl;
+    }
+
+    ~MyMovableClass() // 1 : destructor
+    {
+        std::cout << "DELETING instance of MyMovableClass at " << this << std::endl;
+        delete[] _data;
+    }
+    
+    MyMovableClass(MyMovableClass &source){
+        _size = source._size;
+        _data = new int[_size];
+        *_data = *source._data;
+        std::cout << "COPYING content of instance " << &source << " to instance " << this << std::endl;
+    }
+
+    MyMovableClass &operator=(const MyMovableClass &source){
+        std::cout << "ASSIGNING content of " << &source << " to instance " << this << std::endl;
+        if (this == &source)
+            return *this;
+        delete[] _data;
+        _size = source._size;
+        _data = new int[_size];
+        *_data = *source._data;
+        return *this;
+    }
+};
+
+int main(){
+    MyMovableClass obj1(10);
+    MyMovableClass obj2(obj1);
+    obj2 = obj1;
+
+    return 0;
+}
+```
+
+The output looks like:
+
+```
+CREATING instance of MyMovableClass at 0x7ffeefbff618 allocated with size = 40 bytes
+COPYING content of instance 0x7ffeefbff618 to instance 0x7ffeefbff608
+ASSIGNING content of instance 0x7ffeefbff618 to instance 0x7ffeefbff608
+DELETING instance of MyMovableClass at 0x7ffeefbff608
+DELETING instance of MyMovableClass at 0x7ffeefbff618
+```
+
+#### Limitations of Our Current Class Design
+Let us now consider one more way to instantiate `MyMovableClass` object by using `createObject()` 
+function. Add the following function definition to the `rule_of_three.cpp`, outside the scope 
+of the class `MyMovableClass`:
+
+```cpp
+MyMovableClass createObject(int size){
+  MyMovableClass obj(size); // regular constructor
+  return obj; // return MyMovableClass object by value
+}
+```
+
+Note that when a function returns an object by value, the compiler creates a temporary object as 
+an rvalue. Let's call this function inside main to create an `obj4` instance, as follows:
+
+```cpp
+int main(){
+  // call to copy constructor, (alternate syntax)
+  MyMovableClass obj3 = obj1;
+  // Here, we are instantiating obj3 in the same statement; hence the copy assignment operator would not be called.
+
+  MyMovableClass obj4 = createObject(10);
+  // createObject(10) returns a temporary copy of the object as an rvalue, which is passed to the copy constructor.
+
+   /*
+   * You can try executing the statement below as well
+   * MyMovableClass obj4(createObject(10));
+   */
+
+  return 0;
+}
+```
+
+In the main above, the returned value of `createObject(10)` is passed to the copy constructor. 
+The function `createObject()` returns an instance of `MyMovableClass` by value. In such a case, 
+the compiler creates a temporary copy of the object as an rvalue, which is passed to the copy constructor.
+
+A special call to copy constructor: Try compiling and then running the `rule_of_three.cpp` to notice 
+that `MyMovableClass obj4 = createObject(10);` would not print the cout statement of copy constructor 
+on the console. This is because the copy constructor is called on the temporary object.
+
+In our current class design, while creating `obj4`, the data is dynamically allocated on the stack, 
+which is then copied from the temporary object to its target destination. This means that two expensive 
+memory operations are performed with the first occurring during the creation of the temporary rvalue 
+and the second during the execution of the copy constructor. The similar two expensive memory operations 
+would be performed with the assignment operator if we execute the following statement inside main:
+
+```cpp
+MyMovableClass obj4 = createObject(10); // Don't write this statement if you have already written it before
+obj4 = createObject(10); // call to copy assignment operator
+In the above call to copy assignment operator, it would first erase the memory of obj4, then reallocate it during the creation of the temporary object; and then copy the data from the temporary object to obj4.
+```
+
+From a performance viewpoint, this code involves far too many copies, making it inefficient - 
+especially with large data structures. Prior to C++11, the proper solution in such a case was 
+to simply avoid returning large data structures by value to prevent the expensive and unnecessary 
+copying process. With C++11 however, there is a way we can optimize this and return even large 
+data structures by value. The solution is the move constructor and the Rule of Five.
+
+### 4.15.3. The move constructor
+The basic idea to optimize the code from the last example is to "steal" the rvalue generated by 
+the compiler during the return-by-value operation and move the expensive data in the source object 
+to the target object - not by copying it but by redirecting the data handles. Moving data in such 
+a way is always cheaper than making copies, which is why programmers are highly encouraged to make 
+use of this powerful tool.
+
+The following diagram illustrates the basic principle of moving a resource from a source object to 
+a destination object:
+
+![Move Constructor](./images/move_constructor.png)
+
+In order to achieve this, we will be using a construct called *move constructor*, which is similar 
+to the copy constructor with the key difference being the re-use of existing data without unnecessarily 
+copying it. In addition to the move constructor, there is also a *move assignment operator*, which 
+we need to look at.
+
+Just like the copy constructor, the move constructor builds an instance of a class using a source 
+instance. The key difference between the two is that with the move constructor, the source instance 
+will no longer be usable afterwards.
+
+```cpp
+    MyMovableClass(MyMovableClass &&source) // 4 : move constructor
+    {
+        std::cout << "MOVING (c’tor) instance " << &source << " to instance " << this << std::endl;
+        _data = source._data;
+        _size = source._size;
+        source._data = nullptr;
+        source._size = 0;
+    }
+```
+
+Now, `this` is responsible for the data and must also release memory on destruction - the ownership 
+has been successfully changed (or moved) without the need to copy the data on the heap.
+
+The move assignment operator works in a similar way:
+
+```cpp
+    MyMovableClass &operator=(MyMovableClass &&source) // 5 : move assignment operator
+    {
+        std::cout << "MOVING (assign) instance " << &source << " to instance " << this << std::endl;
+        if (this == &source)
+            return *this;
+
+        delete[] _data;
+
+        _data = source._data;
+        _size = source._size;
+
+        source._data = nullptr;
+        source._size = 0;
+
+        return *this;
+    }
+```
+
+### 4.15.4. The Rule of Five
+The Rule of Five is especially important in resource management, where unnecessary copying needs to 
+be avoided due to limited resources and performance reasons. Also, all the STL container classes 
+such as `std::vector` implement the Rule of Five and use move semantics for increased efficiency.
+
+The Rule of Five states that if you have to write one of the functions listed below then you should 
+consider implementing all of them with a proper resource management policy in place. If you forget 
+to implement one or more, the compiler will usually generate the missing ones (without a warning) 
+but the default versions might not be suitable for the purpose you have in mind. The five functions are:
+
+1. The **destructor**: Responsible for freeing the resource once the object it belongs to goes out of scope.
+2. The **assignment operator**: The default assignment operation performs a member-wise shallow copy, which 
+does not copy the content behind the resource handle. If a deep copy is needed, it has be implemented by 
+the programmer.
+3. The **copy constructor**: As with the assignment operator, the default copy constructor performs a 
+shallow copy of the data members. If something else is needed, the programmer has to implement it accordingly.
+4. The **move constructor**: Because copying objects can be an expensive operation which involves creating, 
+copying and destroying temporary objects, rvalue references are used to bind to an rvalue. Using this mechanism, 
+the move constructor transfers the ownership of a resource from a (temporary) rvalue object to a permanent 
+lvalue object.
+5. The **move assignment operator**: With this operator, ownership of a resource can be transferred from one 
+object to another. The internal behavior is very similar to the move constructor.
+
+### 4.15.5. When are move semantics used?
+One of the primary areas of application are cases, where heavy-weight objects need to be passed 
+around in a program. Copying these without move semantics can cause series performance issues. 
+The idea in this scenario is to create the object a single time and then "simply" move it around 
+using rvalue references and move semantics.
+
+A second area of application are cases where ownership needs to be transferred (such as with unique pointers). 
+The primary difference to shared references is that with move semantics we are not sharing anything but instead 
+we are ensuring through a smart policy that only a single object at a time has access to and thus owns the resource.
+
+```cpp
+int main()
+{
+    MyMovableClass obj1(100), obj2(200); // constructor
+
+    MyMovableClass obj3(obj1); // copy constructor
+
+    MyMovableClass obj4 = obj1; // COPY CONSTRUCTOR not assignment!!
+
+    obj4 = obj2; // copy assignment operator
+
+    return 0;
+}
+```
+
+vs.
+
+```cpp
+int main()
+{
+    MyMovableClass obj1(100); // constructor
+
+    obj1 = MyMovableClass(200); // move assignment operator
+
+    MyMovableClass obj2 = MyMovableClass(300); // move constructor 
+
+    return 0;
+}
+```
+
+Now let's consider a final example:
+
+```cpp
+void useObject(MyMovableClass obj)
+{
+    std::cout << "using object " << &obj << std::endl;
+}
+
+int main()
+{
+    MyMovableClass obj1(100); // constructor
+
+    useObject(obj1);
+
+    return 0;
+}
+```
+
+The output would be:
+
+```
+(1)
+CREATING instance of MyMovableClass at 0x7ffeefbff718 allocated with size = 400 bytes
+
+(2)
+COPYING content of instance 0x7ffeefbff718 to instance 0x7ffeefbff708
+
+using object 0x7ffeefbff708
+
+(3)
+DELETING instance of MyMovableClass at 0x7ffeefbff708
+
+(4)
+CREATING instance of MyMovableClass at 0x7ffeefbff6d8 allocated with size = 800 bytes
+
+(5)
+MOVING (c'tor) instance 0x7ffeefbff6d8 to instance 0x7ffeefbff6e8
+
+using object 0x7ffeefbff6e8
+
+DELETING instance of MyMovableClass at 0x7ffeefbff6e8
+DELETING instance of MyMovableClass at 0x7ffeefbff6d8
+DELETING instance of MyMovableClass at 0x7ffeefbff718
+```
+
+First, we are creating an instance of `MyMovableClass`, `obj1`, by calling the 
+constructor of the class (1).
+
+Then, we are passing `obj1` by-value to a function `useObject`, which causes a 
+temporary object `obj` to be instantiated, which is a copy of `obj1` (2) and is 
+deleted immediately after the function scope is left (3).
+
+Then, the function is called with a temporary instance of `MyMovableClass` as its 
+argument, which creates a temporary instance of `MyMovableClass` as an rvalue (4). 
+But instead of making a copy of it as before, the move constructor is used (5) to 
+transfer ownership of that temporary object to the function scope, which saves us 
+one expensive deep-copy.
+
+### 4.15.6. Moving lvalues
+In some cases, it can make sense to treat lvalues like rvalues. At some point in your code, 
+you might want to transfer ownership of a resource to another part of your program as it is 
+not needed anymore in the current scope. But instead of copying it, you want to just move it 
+as we have seen before. The "problem" with our implementation of `MyMovableClass` is that the 
+call `useObject(obj1)` will trigger the copy constructor as we have seen in one of the last 
+examples. But in order to move it, we would have to pretend to the compiler that `obj1` was 
+an rvalue instead of an lvalue so that we can make an efficient move operation instead of an 
+expensive copy.
+
+There is a solution to this problem in C++, which is `std::move`. This function accepts an 
+lvalue argument and returns it as an rvalue without triggering copy construction. So by passing 
+an object to `std::move` we can force the compiler to use move semantics, either in the form of 
+move constructor or the move assignment operator:
+
+```cpp
+int main()
+{
+    MyMovableClass obj1(100); // constructor
+
+    useObject(std::move(obj1));
+
+    return 0;
+}
+```
+
+The output would look like the following:
+
+```
+CREATING instance of MyMovableClass at 0x7ffeefbff718 allocated with size = 400 bytes
+
+MOVING (c'tor) instance 0x7ffeefbff718 to instance 0x7ffeefbff708
+
+using object 0x7ffeefbff708
+
+DELETING instance of MyMovableClass at 0x7ffeefbff708
+DELETING instance of MyMovableClass at 0x7ffeefbff718
+```
+
+By using `std::move`, we were able to pass the ownership of the resources within `obj1` to the 
+function `useObject`. The local copy `obj1` in the argument list was created with the move 
+constructor and thus accepted the ownership transfer from `obj1` to `obj` . Note that after the 
+call to `useObject`, the instance `obj1` has been invalidated by setting its internal handle to 
+null and thus may not be used anymore within the scope of main (even though you could theoretically 
+try to access it, but this would be a really bad idea).
