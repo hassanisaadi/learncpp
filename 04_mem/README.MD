@@ -1520,3 +1520,145 @@ constructor and thus accepted the ownership transfer from `obj1` to `obj` . Note
 call to `useObject`, the instance `obj1` has been invalidated by setting its internal handle to 
 null and thus may not be used anymore within the scope of main (even though you could theoretically 
 try to access it, but this would be a really bad idea).
+
+## 4.6. Smart Pointers
+
+### 4.6.1. Error-prone memory management with `new` and `delete`
+1. Proper pairing of new and delete
+2. Correct operator pairing
+3. Memory ownership
+
+The solution to avoid the above problems is using *smart pointers*. When a smart pointer is no 
+longer needed (which is the case as soon as it goes out of scope), the memory to which it points 
+is automatically deallocated.
+
+In essence, smart pointers are classes that are wrapped around raw pointers. By overloading 
+the `->` and `*` operators, smart pointer objects make sure that the memory to which their internal 
+raw pointer refers to is properly deallocated. This makes it possible to use smart pointers with the 
+same syntax as raw pointers. As soon as a smart pointer goes out of scope, its destructor is called 
+and the block of memory to which the internal raw pointer refers is properly deallocated. This technique 
+of wrapping a management class around a resource has been conceived by Bjarne Stroustroup and is called 
+**Resource Acquisition Is Initialization (RAII)**.
+
+### 4.6.2. Resource Acquisition in Initialization - RAII
+A general usage pattern common to the resource allocation is as follows:
+
+```
+[Obtain Resource] -> [Use Resource] -> [Release Resource]
+```
+
+However, there are several problems with this seemingly simple pattern:
+1. The program might throw an exception during resource use and thus the point of 
+  release might never be reached.
+2. There might be several points where the resource could potentially be released, making 
+  it hard for a programmer to keep track of all eventualities.
+3. We might simply forget to release the resource again.
+
+The major idea of **RAII** revolves around object ownership and information hiding: 
+Allocation and deallocation are hidden within the management class, so a programmer 
+using the class does not have to worry about memory management responsibilities. If 
+he has not directly allocated a resource, he will not need to directly deallocate it - 
+whoever owns a resource deals with it. In the case of RAII this is the management class 
+around the protected resource. The overall goal is to have allocation and deallocation 
+(e.g. with `new` and `delete`) disappear from the surface level of the code you write.
+
+RAII can be used to leverage - among others - the following advantages:
+* Use class destructors to perform resource clean-up tasks such as proper memory deallocation 
+  when the RAII object gets out of scope
+* Manage ownership and lifetime of dynamically allocated objects
+* Implement encapsulation and information hiding due to resource acquisition and release being 
+performed within the same object.
+
+In the following, let us look at RAII from the perspective of memory management. There are 
+three major parts to an RAII class:
+* A resource is allocated in the constructor of the RAII class
+* The resource is deallocated in the destructor
+* All instances of the RAII class are allocated on the stack to reliably control the lifetime 
+  via the object scope
+  
+Example (Not using RAII paradigm)
+
+```cpp
+int main()
+{
+    double den[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    for (size_t i = 0; i < 5; ++i)
+    {
+        // allocate the resource on the heap
+        double *en = new double(i);
+
+        // use the resource
+        std::cout << *en << "/" << den[i] << " = " << *en / den[i] << std::endl;
+
+        // deallocate the resource
+        delete en;
+    }
+
+    return 0;
+}
+```
+
+What happens if we forget to delete the resource allocated in the heap everytime?
+
+Example (Using RAII paradigm)
+
+```cpp
+#include <iostream>
+
+class MyInt
+{
+    int *_p; // pointer to heap data
+public:
+    MyInt(int *p = NULL) { _p = p; }
+    ~MyInt() 
+    { 
+        std::cout << "resource " << *_p << " deallocated" << std::endl;
+        delete _p; 
+    }
+    int &operator*() { return *_p; } // // overload dereferencing operator
+};
+
+int main()
+{
+    double den[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    for (size_t i = 0; i < 5; ++i)
+    {
+        // allocate the resource on the stack
+        MyInt en(new int(i));
+
+        // use the resource
+        std::cout << *en << "/" << den[i] << " = " << *en / den[i] << std::endl;
+    }
+
+    return 0;
+}
+```
+
+The output will be
+
+```
+0/1 = 0
+resource 0 deallocated
+1/2 = 0.5
+resource 1 deallocated
+2/3 = 0.666667
+resource 2 deallocated
+3/4 = 0.75
+resource 3 deallocated
+4/5 = 0.8
+resource 4 deallocated
+```
+
+### 4.6.3. Smart pointer overview
+they help to ensure that programs are **free of memory leaks** while also remaining **exception-safe**. 
+With smart pointers, resource acquisition occurs at the same time that the object is initialized, so 
+that all resources for the object are created and initialized in a single line of code.
+
+C++11 has introduced three types of smart pointers, which are defined in the header of the standard library:
+1. The **unique pointer** `std::unique_ptr` is a smart pointer which exclusively owns a dynamically allocated 
+  resource on the heap. There must not be a second unique pointer to the same resource.
+2. The **shared pointer** `std::shared_ptr` points to a heap resource but does not explicitly own it. There 
+  may even be several shared pointers to the same resource, each of which will increase an internal reference 
+  count. As soon as this count reaches zero, the resource will automatically be deallocated.
+3. The **weak pointer** `std::weak_ptr` behaves similar to the shared pointer but does not increase the reference counter.
+
