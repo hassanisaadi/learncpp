@@ -1520,3 +1520,454 @@ constructor and thus accepted the ownership transfer from `obj1` to `obj` . Note
 call to `useObject`, the instance `obj1` has been invalidated by setting its internal handle to 
 null and thus may not be used anymore within the scope of main (even though you could theoretically 
 try to access it, but this would be a really bad idea).
+
+## 4.6. Smart Pointers
+
+### 4.6.1. Error-prone memory management with `new` and `delete`
+1. Proper pairing of new and delete
+2. Correct operator pairing
+3. Memory ownership
+
+The solution to avoid the above problems is using *smart pointers*. When a smart pointer is no 
+longer needed (which is the case as soon as it goes out of scope), the memory to which it points 
+is automatically deallocated.
+
+In essence, smart pointers are classes that are wrapped around raw pointers. By overloading 
+the `->` and `*` operators, smart pointer objects make sure that the memory to which their internal 
+raw pointer refers to is properly deallocated. This makes it possible to use smart pointers with the 
+same syntax as raw pointers. As soon as a smart pointer goes out of scope, its destructor is called 
+and the block of memory to which the internal raw pointer refers is properly deallocated. This technique 
+of wrapping a management class around a resource has been conceived by Bjarne Stroustroup and is called 
+**Resource Acquisition Is Initialization (RAII)**.
+
+### 4.6.2. Resource Acquisition in Initialization - RAII
+A general usage pattern common to the resource allocation is as follows:
+
+```
+[Obtain Resource] -> [Use Resource] -> [Release Resource]
+```
+
+However, there are several problems with this seemingly simple pattern:
+1. The program might throw an exception during resource use and thus the point of 
+  release might never be reached.
+2. There might be several points where the resource could potentially be released, making 
+  it hard for a programmer to keep track of all eventualities.
+3. We might simply forget to release the resource again.
+
+The major idea of **RAII** revolves around object ownership and information hiding: 
+Allocation and deallocation are hidden within the management class, so a programmer 
+using the class does not have to worry about memory management responsibilities. If 
+he has not directly allocated a resource, he will not need to directly deallocate it - 
+whoever owns a resource deals with it. In the case of RAII this is the management class 
+around the protected resource. The overall goal is to have allocation and deallocation 
+(e.g. with `new` and `delete`) disappear from the surface level of the code you write.
+
+RAII can be used to leverage - among others - the following advantages:
+* Use class destructors to perform resource clean-up tasks such as proper memory deallocation 
+  when the RAII object gets out of scope
+* Manage ownership and lifetime of dynamically allocated objects
+* Implement encapsulation and information hiding due to resource acquisition and release being 
+performed within the same object.
+
+In the following, let us look at RAII from the perspective of memory management. There are 
+three major parts to an RAII class:
+* A resource is allocated in the constructor of the RAII class
+* The resource is deallocated in the destructor
+* All instances of the RAII class are allocated on the stack to reliably control the lifetime 
+  via the object scope
+  
+Example (Not using RAII paradigm)
+
+```cpp
+int main()
+{
+    double den[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    for (size_t i = 0; i < 5; ++i)
+    {
+        // allocate the resource on the heap
+        double *en = new double(i);
+
+        // use the resource
+        std::cout << *en << "/" << den[i] << " = " << *en / den[i] << std::endl;
+
+        // deallocate the resource
+        delete en;
+    }
+
+    return 0;
+}
+```
+
+What happens if we forget to delete the resource allocated in the heap everytime?
+
+Example (Using RAII paradigm)
+
+```cpp
+#include <iostream>
+
+class MyInt
+{
+    int *_p; // pointer to heap data
+public:
+    MyInt(int *p = NULL) { _p = p; }
+    ~MyInt() 
+    { 
+        std::cout << "resource " << *_p << " deallocated" << std::endl;
+        delete _p; 
+    }
+    int &operator*() { return *_p; } // // overload dereferencing operator
+};
+
+int main()
+{
+    double den[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    for (size_t i = 0; i < 5; ++i)
+    {
+        // allocate the resource on the stack
+        MyInt en(new int(i));
+
+        // use the resource
+        std::cout << *en << "/" << den[i] << " = " << *en / den[i] << std::endl;
+    }
+
+    return 0;
+}
+```
+
+The output will be
+
+```
+0/1 = 0
+resource 0 deallocated
+1/2 = 0.5
+resource 1 deallocated
+2/3 = 0.666667
+resource 2 deallocated
+3/4 = 0.75
+resource 3 deallocated
+4/5 = 0.8
+resource 4 deallocated
+```
+
+### 4.6.3. Smart pointer overview
+they help to ensure that programs are **free of memory leaks** while also remaining **exception-safe**. 
+With smart pointers, resource acquisition occurs at the same time that the object is initialized, so 
+that all resources for the object are created and initialized in a single line of code.
+
+C++11 has introduced three types of smart pointers, which are defined in the header of the standard library:
+1. The **unique pointer** `std::unique_ptr` is a smart pointer which exclusively owns a dynamically allocated 
+  resource on the heap. There must not be a second unique pointer to the same resource.
+2. The **shared pointer** `std::shared_ptr` points to a heap resource but does not explicitly own it. There 
+  may even be several shared pointers to the same resource, each of which will increase an internal reference 
+  count. As soon as this count reaches zero, the resource will automatically be deallocated.
+3. The **weak pointer** `std::weak_ptr` behaves similar to the shared pointer but does not increase the reference counter.
+
+### 4.6.4. The Unique Pointer
+A unique pointer is the exclusive owner of the memory resource it represents. There must not be a 
+second unique pointer to the same memory resource, otherwise there will be a compiler error. As soon as 
+the unique pointer goes out of scope, the memory resource is deallocated again. Unique pointers are useful 
+when working with a temporary heap resource that is no longer needed once it goes out of scope.
+
+The following diagram illustrates the basic idea of a unique pointer:
+
+![Unique Pointer](./images/unique_pointer.png)
+
+In the example, a resource in memory is referenced by a unique pointer instance `sourcePtr`. Then, 
+the resource is reassigned to another unique pointer instance `destPtr` using `std::move`. The resource 
+is now owned by `destPtr` while `sourcePtr` can still be used but does not manage a resource anymore.
+
+A unique pointer is constructed using the following syntax:
+
+```cpp
+std::unique_ptr<Type> p(new Type);
+```
+
+Example:
+
+```cpp
+#include <memory>
+
+void RawPointer()
+{
+    int *raw = new int; // create a raw pointer on the heap
+    *raw = 1; // assign a value
+    delete raw; // delete the resource again
+}
+
+void UniquePointer()
+{
+    std::unique_ptr<int> unique(new int); // create a unique pointer on the stack
+    *unique = 2; // assign a value
+    // delete is not neccessary
+}
+```
+
+Another example when we create a unique pointer of our class:
+
+```cpp
+#include <iostream>
+#include <memory>
+#include <string>
+
+class MyClass
+{
+private:
+    std::string _text;
+
+public:
+    MyClass() {}
+    MyClass(std::string text) { _text = text; }
+    ~MyClass() { std::cout << _text << " destroyed" << std::endl; }
+    void setText(std::string text) { _text = text; }
+};
+
+int main()
+{
+    // create unique pointer to proprietary class
+    std::unique_ptr<MyClass> myClass1(new MyClass());
+    std::unique_ptr<MyClass> myClass2(new MyClass("String 2"));
+
+    // call member function using ->
+    myClass1->setText("String 1");
+
+    // use the dereference operator * 
+    *myClass1 = *myClass2;
+
+    // use the .get() function to retrieve a raw pointer to the object
+    std::cout << "Objects have stack addresses " << myClass1.get() << " and " << myClass2.get() << std::endl;
+
+    return 0;
+}
+```
+
+We can use `->` operator to access to the member of the class, `*` operator to access to the value of `myClass1` 
+and `myClass2` and assign the one to another, and `.` operator to call the proprietary 
+functions of the smart pointer, such as retrieving the internal raw pointer with `get()`.
+
+The output will be 
+
+```
+Objects have stack addresses 0x1004000e0 and 0x100400100
+String 2 destroyed
+String 2 destroyed
+```
+
+### 4.6.5. The Shared Pointer
+Just as the unique pointer, a shared pointer owns the resource it points to. The main difference 
+between the two smart pointers is that shared pointers keep a reference counter on how many of 
+them point to the same memory resource. Each time a shared pointer goes out of scope, the counter 
+is decreased. When it reaches zero (i.e. when the last shared pointer to the resource is about to 
+vanish). the memory is properly deallocated. This smart pointer type is useful for cases where you 
+require access to a memory location on the heap in multiple parts of your program and you want to 
+make sure that whoever owns a shared pointer to the memory can rely on the fact that it will be 
+accessible throughout the lifetime of that pointer.
+
+The following diagram illustrates the basic idea of a shared pointer:
+
+![Shared Pointer](./images/shared_pointer.png)
+
+Example:
+
+```cpp
+#include <iostream>
+#include <memory>
+
+int main()
+{
+    std::shared_ptr<int> shared1(new int);
+    std::cout << "shared pointer count = " << shared1.use_count() << std::endl;
+
+    {
+        std::shared_ptr<int> shared2 = shared1;
+        std::cout << "shared pointer count = " << shared1.use_count() << std::endl;
+    }
+    
+    std::cout << "shared pointer count = " << shared1.use_count() << std::endl;
+
+    return 0;
+}
+```
+
+The output will be:
+
+```
+shared pointer count = 1
+shared pointer count = 2
+shared pointer count = 1
+```
+
+A shared pointer can also be redirected by using the `reset()` function. If the resource 
+which a shared pointer manages is no longer needed in the current scope, the pointer can 
+be reset to manage a difference resource as illustrated in the example on the right.
+
+```cpp
+#include <iostream>
+#include <memory>
+
+class MyClass
+{
+public:
+    ~MyClass() { std::cout << "Destructor of MyClass called" << std::endl; }
+};
+
+int main()
+{
+    std::shared_ptr<MyClass> shared(new MyClass);
+    std::cout << "shared pointer count = " << shared.use_count() << std::endl;
+
+    shared.reset(new MyClass);
+    std::cout << "shared pointer count = " << shared.use_count() << std::endl;
+
+    return 0;
+}
+```
+
+The output will be:
+
+```
+shared pointer count = 1
+Destructor of MyClass called
+shared pointer count = 1
+Destructor of MyClass called
+```
+
+#### Circular reference
+Considering the following example:
+
+```cpp
+#include <iostream>
+#include <memory>
+
+class MyClass
+{
+public:
+    std::shared_ptr<MyClass> _member;
+    ~MyClass() { std::cout << "Destructor of MyClass called" << std::endl; }
+};
+
+int main()
+{
+    std::shared_ptr<MyClass> myClass1(new MyClass);
+    std::shared_ptr<MyClass> myClass2(new MyClass);
+    
+    myClass1->_member = myClass2;
+    myClass2->_member = myClass1;
+
+    return 0;
+}
+```
+
+These two lines produce a *circular reference*. When `myClass1` goes out of scope at the end of 
+`main`, its destructor can’t clean up memory as there is still a reference count of 1 in the smart 
+pointer, which is caused by the shared pointer `_member` in `myClass2`. The same holds true for 
+`myClass2`, which can not be properly deleted as there is still a shared pointer to it in `myClass1`. 
+This deadlock situation prevents the destructors from being called and causes a memory leak.
+
+To prevent such circular references, there is a weak pointer.
+
+### 4.6.6. The Weak Pointer
+Similar to shared pointers, there can be multiple weak pointers to the same resource. The main difference 
+though is that weak pointers do not increase the reference count. Weak pointers hold a non-owning reference 
+to an object that is managed by another shared pointer.
+
+The following rule applies to weak pointers: You can only create weak pointers out of shared pointers or 
+out of another weak pointer. The following code shows a few examples of how to use and how not to use weak pointers.
+
+```cpp
+#include <iostream>
+#include <memory>
+
+int main()
+{
+    std::shared_ptr<int> mySharedPtr(new int);
+    std::cout << "shared pointer count = " << mySharedPtr.use_count() << std::endl;
+
+    std::weak_ptr<int> myWeakPtr1(mySharedPtr);
+    std::weak_ptr<int> myWeakPtr2(myWeakPtr1);
+    std::cout << "shared pointer count = " << mySharedPtr.use_count() << std::endl;
+
+    // std::weak_ptr<int> myWeakPtr3(new int); // COMPILE ERROR
+
+    return 0;
+}
+```
+
+The output looks as follows:
+
+```
+shared pointer count = 1
+shared pointer count = 1
+```
+
+As we have seen with raw pointers, you can never be sure wether the memory resource to which 
+the pointer refers is still valid. With a weak pointer, even though this type does not prevent 
+an object from being deleted, the validity of its resource can be checked. The following code 
+illustrates how to use the `expired()` function to do this.
+
+```cpp
+#include <iostream>
+#include <memory>
+
+int main()
+{
+    std::shared_ptr<int> mySharedPtr(new int);
+    std::weak_ptr<int> myWeakPtr(mySharedPtr);
+
+    mySharedPtr.reset(new int);
+
+    if (myWeakPtr.expired() == true)
+    {
+        std::cout << "Weak pointer expired!" << std::endl;
+    }
+
+    return 0;
+}
+```
+
+### 4.6.7. Converting between smart pointers
+
+```cpp
+#include <iostream>
+#include <memory>
+
+int main()
+{
+    // construct a unique pointer
+    std::unique_ptr<int> uniquePtr(new int);
+    
+    // (1) shared pointer from unique pointer
+    std::shared_ptr<int> sharedPtr1 = std::move(uniquePtr);
+
+    // (2) shared pointer from weak pointer
+    std::weak_ptr<int> weakPtr(sharedPtr1);
+    std::shared_ptr<int> sharedPtr2 = weakPtr.lock();
+
+    // (3) raw pointer from shared (or unique) pointer   
+    int *rawPtr = sharedPtr2.get();
+    delete rawPtr;
+
+    return 0;
+}
+```
+
+In (1), a conversion from unique pointer to shared pointer is performed. You can see that this can 
+be achieved by using `std::move`, which calls the move assignment operator on `sharedPtr1` and steals 
+the resource from `uniquePtr` while at the same time invalidating its resource handle on the heap-allocated 
+integer.
+
+In (2), you can see how to convert from weak to shared pointer. Imagine that you have been passed a 
+weak pointer to a memory object which you want to work on. To avoid invalid memory access, you want to 
+make sure that the object will not be deallocated before your work on it has been finished. To do this, 
+you can convert a weak pointer to a shared pointer by calling the `lock()` function on the weak pointer.
+
+In (3), a raw pointer is extracted from a shared pointer. However, this operation does not decrease the 
+reference count within `sharedPtr2`. This means that calling delete on `rawPtr` in the last line before 
+main returns will generate a runtime error as a resource is trying to be deleted which is managed by 
+`sharedPtr2` and has already been removed. The output of the program when compiled with g++ thus is:
+
+```
+malloc: *** error for object 0x1003001f0: pointer being freed was not allocated.
+```
+
+Note that there are **no options for converting away from a shared pointer**. Once you have created a 
+shared pointer, you must stick to it (or a copy of it) for the remainder of your program.
