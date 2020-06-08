@@ -1521,9 +1521,9 @@ call to `useObject`, the instance `obj1` has been invalidated by setting its int
 null and thus may not be used anymore within the scope of main (even though you could theoretically 
 try to access it, but this would be a really bad idea).
 
-## 4.6. Smart Pointers
+## 4.16. Smart Pointers
 
-### 4.6.1. Error-prone memory management with `new` and `delete`
+### 4.16.1. Error-prone memory management with `new` and `delete`
 1. Proper pairing of new and delete
 2. Correct operator pairing
 3. Memory ownership
@@ -1540,7 +1540,7 @@ and the block of memory to which the internal raw pointer refers is properly dea
 of wrapping a management class around a resource has been conceived by Bjarne Stroustroup and is called 
 **Resource Acquisition Is Initialization (RAII)**.
 
-### 4.6.2. Resource Acquisition in Initialization - RAII
+### 4.16.2. Resource Acquisition in Initialization - RAII
 A general usage pattern common to the resource allocation is as follows:
 
 ```
@@ -1649,7 +1649,7 @@ resource 3 deallocated
 resource 4 deallocated
 ```
 
-### 4.6.3. Smart pointer overview
+### 4.16.3. Smart pointer overview
 they help to ensure that programs are **free of memory leaks** while also remaining **exception-safe**. 
 With smart pointers, resource acquisition occurs at the same time that the object is initialized, so 
 that all resources for the object are created and initialized in a single line of code.
@@ -1662,7 +1662,7 @@ C++11 has introduced three types of smart pointers, which are defined in the hea
   count. As soon as this count reaches zero, the resource will automatically be deallocated.
 3. The **weak pointer** `std::weak_ptr` behaves similar to the shared pointer but does not increase the reference counter.
 
-### 4.6.4. The Unique Pointer
+### 4.16.4. The Unique Pointer
 A unique pointer is the exclusive owner of the memory resource it represents. There must not be a 
 second unique pointer to the same memory resource, otherwise there will be a compiler error. As soon as 
 the unique pointer goes out of scope, the memory resource is deallocated again. Unique pointers are useful 
@@ -1752,7 +1752,7 @@ String 2 destroyed
 String 2 destroyed
 ```
 
-### 4.6.5. The Shared Pointer
+### 4.16.5. The Shared Pointer
 Just as the unique pointer, a shared pointer owns the resource it points to. The main difference 
 between the two smart pointers is that shared pointers keep a reference counter on how many of 
 them point to the same memory resource. Each time a shared pointer goes out of scope, the counter 
@@ -1865,7 +1865,7 @@ This deadlock situation prevents the destructors from being called and causes a 
 
 To prevent such circular references, there is a weak pointer.
 
-### 4.6.6. The Weak Pointer
+### 4.16.6. The Weak Pointer
 Similar to shared pointers, there can be multiple weak pointers to the same resource. The main difference 
 though is that weak pointers do not increase the reference count. Weak pointers hold a non-owning reference 
 to an object that is managed by another shared pointer.
@@ -1924,7 +1924,7 @@ int main()
 }
 ```
 
-### 4.6.7. Converting between smart pointers
+### 4.16.7. Converting between smart pointers
 
 ```cpp
 #include <iostream>
@@ -1972,8 +1972,8 @@ malloc: *** error for object 0x1003001f0: pointer being freed was not allocated.
 Note that there are **no options for converting away from a shared pointer**. Once you have created a 
 shared pointer, you must stick to it (or a copy of it) for the remainder of your program.
 
-## 4.7. Transferring Ownership
-### 4.7.1. Passing smart pointers to functions
+## 4.17. Transferring Ownership
+### 4.17.1. Passing smart pointers to functions
 
 > Take smart pointers as parameters only to explicitly express lifetime semantics.
 
@@ -2113,7 +2113,7 @@ or to create new smart pointers from them. If you did so, the ownership rules ap
 be severely violated. When passing a raw pointer to a function or when returning it, raw pointers should 
 always be considered as owned by the smart pointer from which the raw reference to the resource has been obtained.
 
-### 4.7.2. Returning smart pointers from functions
+### 4.17.2. Returning smart pointers from functions
 With return values, the same logic that we have used for passing smart pointers to functions applies: 
 Return a smart pointer, both unique or shared, if the caller needs to manipulate or access the pointer 
 properties. In case the caller just needs the underlying object, a raw pointer should be returned.
@@ -2129,7 +2129,7 @@ Smart pointers should always be returned by value. This is not only simpler but 
 3. When returning a `shared_ptr` by value, the internal reference counter is guaranteed to be properly incremented. 
   This is not the case when returning by pointer or by reference.
   
-## 4.8. Best-Practices for Passing Smart Pointers
+## 4.18. Best-Practices for Passing Smart Pointers
 This sections contains a condensed summary of when (and when not) to use smart pointers and how to 
 properly pass them between functions. This section is intended as a guide for your future use of 
 this important feature in modern C++.
@@ -2145,7 +2145,7 @@ void f( shared_ptr<object> ); // (e)
 void f( shared_ptr<object>& ); // (f)
 ```
 
-### 4.8.1. The Preferred Way
+### 4.18.1. The Preferred Way
 The preferred way of to pass object parameters is by using a) or b) :
 
 ```cpp
@@ -2165,7 +2165,7 @@ To decide wether a `*` or `&` is more appropriate, you should think about wether
 that there is no object. This can only be done with pointers by passing e.g. `nullptr`. In most other 
 cases, you should use a reference instead.
 
-### 4.8.2. The Object Sink
+### 4.18.2. The Object Sink
 The preferred way of passing an object to a function so that the function takes ownership of the object 
 (or "consumes" it) is by using method c) from the above list:
 
@@ -2183,7 +2183,7 @@ to which the object now belongs may destroy it or move it somewhere else.
 Using const with this particular call does not make sense as it models an ownership transfer so the source will 
 be definitely modified.
 
-### 4.8.3. In And Out Again 1
+### 4.18.3. In And Out Again 1
 In some cases, we want to modify a unique pointer (not necessarily the underlying object) and re-use it in the 
 context of the caller. In this case, method d) from the above list might be most suitable:
 
@@ -2198,7 +2198,7 @@ ourselves unnecessarily to a particular object lifetime strategy on the caller s
 Using `const` with this call structure is not recommendable as we would not be able to modify the `unique_ptr` in 
 this case. In case you want to modify the underlying object, use method a) instead.
 
-### 4.8.4. Sharing Object Ownership
+### 4.18.4. Sharing Object Ownership
 In the last examples, we have looked at strategies involving unique ownership. In this example, we want to express 
 that a function will store and share ownership of an object on the heap. This can be achieved by using method e) 
 from the list above:
@@ -2221,7 +2221,7 @@ increase the reference count and is thus more effective.
 A disadvantage of using a `shared_ptr` as a function argument is that the function will be limited to using only objects 
 that are managed by shared pointers - which limits flexibility and reusability of the code.
 
-### 4.8.5. In And Out Again 2
+### 4.18.5. In And Out Again 2
 As with unique pointers, the need to modify shared pointers and re-use them in the context of the caller might arise. 
 In this case, method f) might be the right choice:
 
