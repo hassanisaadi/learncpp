@@ -738,7 +738,7 @@ this concept follows a simple three-step pattern:
 
 The following diagram illustrates the basic idea of forking:
 
-![fork-join parallelism](./images/fork_join.png)
+![fork-join parallelism](./images/fork_join.jpg)
 
 In the following example, a number of threads is created and added to a vector. The basic idea 
 is to loop over the vector at the end of the main function and call join on all the thread objects 
